@@ -1,114 +1,76 @@
-import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
-	Notice,
-	Plugin,
-} from 'obsidian';
-import {
-	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
-} from './settings';
+import { MarkdownView, Notice, Plugin } from "obsidian";
+import { getLineBlame, getGithubRepoUrl } from "./git-blame";
+import { showBlameAnnotation, removeBlameAnnotation } from "./blame-annotation";
+import { showBlamePopup, removeBlamePopup } from "./blame-popup";
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings!: MyPluginSettings;
+export default class ObsidianLensPlugin extends Plugin {
+	private githubUrl: string | null = null;
 
 	async onload() {
-		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		this.registerDomEvent(document, "click", (evt: MouseEvent) => {
+			this.handleEditorClick(evt);
 		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			},
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (
-				editor: Editor,
-				_ctx: MarkdownView | MarkdownFileInfo,
-			) => {
-				editor.replaceSelection('Sample editor command');
-			},
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			},
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(activeDocument, 'click', (_evt: MouseEvent) => {
-			new Notice('Click');
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
-		);
 	}
 
-	onunload() {}
-
-	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
-		);
+	onunload() {
+		removeBlameAnnotation();
+		removeBlamePopup();
 	}
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
+	handleEditorClick(evt: MouseEvent) {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view || !view.editor) return;
 
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
+		const target = evt.target as HTMLElement;
+		const isInEditor = view.containerEl.contains(target);
+		if (!isInEditor) return;
+
+		if (target.closest(".obsidian-lens-annotation, .obsidian-lens-popup")) return;
+
+		const lineEl = target.closest(".cm-line") as HTMLElement | null;
+		if (!lineEl) return;
+
+		const editor = view.editor;
+		const cursor = editor.getCursor();
+		const lineNumber = cursor.line + 1;
+
+		const file = view.file;
+		if (!file) return;
+
+		const vaultPath = this.getVaultAbsolutePath();
+		if (!vaultPath) {
+			new Notice("obsidian-lens: could not resolve vault path");
+			return;
+		}
+
+		this.runBlame(vaultPath, file.path, lineNumber, lineEl);
 	}
 
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
+	async runBlame(
+		vaultPath: string,
+		relativeFilePath: string,
+		lineNumber: number,
+		lineEl: HTMLElement
+	) {
+		const blame = await getLineBlame(vaultPath, relativeFilePath, lineNumber);
+
+		if (!blame) {
+			removeBlameAnnotation();
+			return;
+		}
+
+		if (this.githubUrl === null) {
+			this.githubUrl = await getGithubRepoUrl(vaultPath);
+		}
+
+		showBlameAnnotation(blame, lineEl, (x, y) => {
+			showBlamePopup(blame, x, y, this.githubUrl);
+		});
+	}
+
+	getVaultAbsolutePath(): string | null {
+		const adapter = this.app.vault.adapter;
+		const anyAdapter = adapter as unknown as { basePath?: string };
+		return anyAdapter.basePath ?? null;
 	}
 }
