@@ -6,11 +6,17 @@ export const removeBlamePopup = (): void => {
 	document.querySelector(`.${POPUP_CLASS}`)?.remove();
 };
 
+export interface PopupHoverHandlers {
+	onEnter: () => void;
+	onLeave: () => void;
+}
+
 export const showBlamePopup = (
 	blame: BlameInfo,
 	x: number,
 	y: number,
-	githubUrl: string | null
+	githubUrl: string | null,
+	handlers: PopupHoverHandlers
 ): void => {
 	removeBlamePopup();
 
@@ -20,13 +26,12 @@ export const showBlamePopup = (
 	authorEl.setText(blame.author);
 
 	const timeEl = popup.createSpan({ cls: "obsidian-lens-time" });
-	timeEl.setText(
-		` • ${blame.isUncommitted ? "Uncommitted" : formatRelativeTime(blame.authorTime)}`
-	);
+	timeEl.setText(` • ${formatRelativeTime(blame.authorTime)}`);
 
-	if (blame.summary) {
+	const summaryText = blame.isUncommitted ? "Uncommitted changes" : blame.summary;
+	if (summaryText) {
 		const summaryEl = popup.createDiv({ cls: "obsidian-lens-summary" });
-		summaryEl.setText(blame.summary);
+		summaryEl.setText(summaryText);
 	}
 
 	if (githubUrl && !blame.isUncommitted && blame.commitHash) {
@@ -39,6 +44,9 @@ export const showBlamePopup = (
 
 	popup.style.left = `${x}px`;
 	popup.style.top = `${y}px`;
+
+	popup.addEventListener("mouseenter", handlers.onEnter);
+	popup.addEventListener("mouseleave", handlers.onLeave);
 
 	document.body.appendChild(popup);
 

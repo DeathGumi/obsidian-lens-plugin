@@ -38,6 +38,7 @@
 	text-overflow: ellipsis;
 	pointer-events: auto;
 	cursor: default;
+	transform: translateY(-50%);
 }
 
 .obsidian-lens-link {

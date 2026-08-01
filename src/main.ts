@@ -3,18 +3,51 @@ import { getLineBlame, getGithubRepoUrl } from "./git-blame";
 import { showBlameAnnotation, removeBlameAnnotation } from "./blame-annotation";
 import { showBlamePopup, removeBlamePopup } from "./blame-popup";
 
+const POPUP_HIDE_DELAY_MS = 200;
+
 export default class ObsidianLensPlugin extends Plugin {
 	private githubUrl: string | null = null;
+	private hidePopupTimeout: number | null = null;
 
 	async onload() {
 		this.registerDomEvent(document, "click", (evt: MouseEvent) => {
 			this.handleEditorClick(evt);
 		});
+
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", () => {
+				this.clearBlame();
+			})
+		);
+		this.registerEvent(
+			this.app.workspace.on("file-open", () => {
+				this.clearBlame();
+			})
+		);
 	}
 
 	onunload() {
+		this.clearBlame();
+	}
+
+	clearBlame() {
+		this.cancelHidePopup();
 		removeBlameAnnotation();
 		removeBlamePopup();
+	}
+
+	scheduleHidePopup() {
+		this.cancelHidePopup();
+		this.hidePopupTimeout = window.setTimeout(() => {
+			removeBlamePopup();
+		}, POPUP_HIDE_DELAY_MS);
+	}
+
+	cancelHidePopup() {
+		if (this.hidePopupTimeout !== null) {
+			window.clearTimeout(this.hidePopupTimeout);
+			this.hidePopupTimeout = null;
+		}
 	}
 
 	handleEditorClick(evt: MouseEvent) {
@@ -35,6 +68,11 @@ export default class ObsidianLensPlugin extends Plugin {
 		const editor = view.editor;
 		const cursor = editor.getCursor();
 		const lineNumber = cursor.line + 1;
+
+		if (editor.getLine(cursor.line).trim().length === 0) {
+			this.clearBlame();
+			return;
+		}
 
 		const file = view.file;
 		if (!file) return;
@@ -65,8 +103,15 @@ export default class ObsidianLensPlugin extends Plugin {
 			this.githubUrl = await getGithubRepoUrl(vaultPath);
 		}
 
-		showBlameAnnotation(blame, lineEl, (x, y) => {
-			showBlamePopup(blame, x, y, this.githubUrl);
+		showBlameAnnotation(blame, lineEl, {
+			onEnter: (x, y) => {
+				this.cancelHidePopup();
+				showBlamePopup(blame, x, y, this.githubUrl, {
+					onEnter: () => this.cancelHidePopup(),
+					onLeave: () => this.scheduleHidePopup(),
+				});
+			},
+			onLeave: () => this.scheduleHidePopup(),
 		});
 	}
 

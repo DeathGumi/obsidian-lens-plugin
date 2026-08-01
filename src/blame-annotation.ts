@@ -2,6 +2,8 @@ import { BlameInfo, formatRelativeTime } from "./git-blame";
 
 const ANNOTATION_CLASS = "obsidian-lens-annotation";
 const MAX_SUMMARY_LENGTH = 40;
+const TEXT_GAP_PX = 128; // Gap between line and actual text of annotation. This is to avoid overlapping with the line number gutter and the fold button.
+const HOVER_SHOW_DELAY_MS = 350; // Delay would show up but giving it delay doesn't make it as annoying
 
 export const removeBlameAnnotation = (): void => {
 	document.querySelector(`.${ANNOTATION_CLASS}`)?.remove();
@@ -24,10 +26,15 @@ const getTextEndRect = (lineEl: HTMLElement): DOMRect => {
 	return lineEl.getBoundingClientRect();
 };
 
+export interface AnnotationHoverHandlers {
+	onEnter: (x: number, y: number) => void;
+	onLeave: () => void;
+}
+
 export const showBlameAnnotation = (
 	blame: BlameInfo,
 	lineEl: HTMLElement,
-	onHover: (x: number, y: number) => void
+	handlers: AnnotationHoverHandlers
 ): void => {
 	removeBlameAnnotation();
 
@@ -35,18 +42,31 @@ export const showBlameAnnotation = (
 
 	const annotation = createSpan({ cls: ANNOTATION_CLASS });
 
-	const label = blame.isUncommitted
-		? `${blame.author}, Uncommitted`
-		: `${blame.author}, ${formatRelativeTime(blame.authorTime)} • ${truncate(blame.summary, MAX_SUMMARY_LENGTH)}`;
+	const summaryText = blame.isUncommitted
+		? "Uncommitted changes"
+		: truncate(blame.summary, MAX_SUMMARY_LENGTH);
+	const label = `${blame.author}, ${formatRelativeTime(blame.authorTime)} • ${summaryText}`;
 
 	annotation.setText(label);
 
-	annotation.style.left = `${rect.right + 12}px`;
-	annotation.style.top = `${rect.top}px`;
+	annotation.style.left = `${rect.right + TEXT_GAP_PX}px`;
+	annotation.style.top = `${rect.top + rect.height / 2}px`;
+
+	let showTimeout: number | null = null;
 
 	annotation.addEventListener("mouseenter", () => {
-		const annotationRect = annotation.getBoundingClientRect();
-		onHover(annotationRect.left, annotationRect.bottom + 4);
+		showTimeout = window.setTimeout(() => {
+			showTimeout = null;
+			const annotationRect = annotation.getBoundingClientRect();
+			handlers.onEnter(annotationRect.left, annotationRect.bottom + 4);
+		}, HOVER_SHOW_DELAY_MS);
+	});
+	annotation.addEventListener("mouseleave", () => {
+		if (showTimeout !== null) {
+			window.clearTimeout(showTimeout);
+			showTimeout = null;
+		}
+		handlers.onLeave();
 	});
 
 	document.body.appendChild(annotation);

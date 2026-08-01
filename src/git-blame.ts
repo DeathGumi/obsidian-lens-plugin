@@ -57,7 +57,13 @@ const parsePorcelain = (output: string): BlameInfo | null => {
 
 	const isUncommitted = author === "Not Committed Yet";
 
-	return { author, authorTime, summary, isUncommitted, commitHash };
+	return {
+		author: isUncommitted ? "You" : author,
+		authorTime,
+		summary,
+		isUncommitted,
+		commitHash,
+	};
 };
 
 /**
