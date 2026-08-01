@@ -21,7 +21,8 @@ export default class ObsidianLensPlugin extends Plugin {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view || !view.editor) return;
 
-		const target = evt.target as HTMLElement;
+		const target = evt.target as HTMLElement | null;
+		if (!target) return;
 		const isInEditor = view.containerEl.contains(target);
 		if (!isInEditor) return;
 
@@ -43,7 +44,7 @@ export default class ObsidianLensPlugin extends Plugin {
 			return;
 		}
 
-		this.runBlame(vaultPath, file.path, lineNumber, lineEl);
+		void this.runBlame(vaultPath, file.path, lineNumber, lineEl);
 	}
 
 	async runBlame(
