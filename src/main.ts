@@ -29,8 +29,8 @@ export default class ObsidianLensPlugin extends Plugin {
 
 		if (target.closest(".obsidian-lens-annotation, .obsidian-lens-popup")) return;
 
-		const lineEl = target.closest(".cm-line") as HTMLElement | null;
-		if (!lineEl) return;
+		const lineEl = target.closest(".cm-line");
+		if (!(lineEl instanceof HTMLElement)) return;
 
 		const editor = view.editor;
 		const cursor = editor.getCursor();
@@ -41,7 +41,7 @@ export default class ObsidianLensPlugin extends Plugin {
 
 		const vaultPath = this.getVaultAbsolutePath();
 		if (!vaultPath) {
-			new Notice("Obsidian Lens: could not resolve vault path");
+			new Notice("Obsidian lens: could not resolve vault path");
 			return;
 		}
 
