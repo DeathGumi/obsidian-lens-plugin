@@ -33,8 +33,7 @@ export const showBlameAnnotation = (
 
 	const rect = getTextEndRect(lineEl);
 
-	const annotation = document.createElement("span");
-	annotation.className = ANNOTATION_CLASS;
+	const annotation = createSpan({ cls: ANNOTATION_CLASS });
 
 	const label = blame.isUncommitted
 		? `${blame.author}, Uncommitted`

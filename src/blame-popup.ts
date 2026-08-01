@@ -14,8 +14,7 @@ export const showBlamePopup = (
 ): void => {
 	removeBlamePopup();
 
-	const popup = document.createElement("div");
-	popup.className = POPUP_CLASS;
+	const popup = createDiv({ cls: POPUP_CLASS });
 
 	const authorEl = popup.createSpan({ cls: "obsidian-lens-author" });
 	authorEl.setText(blame.author);
@@ -49,5 +48,5 @@ export const showBlamePopup = (
 			document.removeEventListener("mousedown", dismiss);
 		}
 	};
-	setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
+	window.setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
 };

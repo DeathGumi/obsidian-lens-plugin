@@ -21,8 +21,9 @@ export default class ObsidianLensPlugin extends Plugin {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view || !view.editor) return;
 
-		const target = evt.target as HTMLElement | null;
-		if (!target) return;
+		const target = evt.target;
+		if (!(target instanceof HTMLElement)) return;
+
 		const isInEditor = view.containerEl.contains(target);
 		if (!isInEditor) return;
 
@@ -40,7 +41,7 @@ export default class ObsidianLensPlugin extends Plugin {
 
 		const vaultPath = this.getVaultAbsolutePath();
 		if (!vaultPath) {
-			new Notice("obsidian-lens: could not resolve vault path");
+			new Notice("Obsidian Lens: could not resolve vault path");
 			return;
 		}
 
