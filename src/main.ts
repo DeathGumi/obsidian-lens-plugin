@@ -24,6 +24,11 @@ export default class ObsidianLensPlugin extends Plugin {
 				this.clearBlame();
 			})
 		);
+		this.registerEvent(
+			this.app.workspace.on("editor-change", () => {
+				this.clearBlame();
+			})
+		);
 	}
 
 	onunload() {
