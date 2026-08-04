@@ -103,7 +103,11 @@ export default class ObsidianLensPlugin extends Plugin {
 		if (target.closest(".obsidian-lens-annotation, .obsidian-lens-popup")) return;
 
 		const lineEl = target.closest(".cm-line");
-		if (!(lineEl instanceof HTMLElement)) return;
+		// If user clicks on anything after clicking annotation clear
+		if (!(lineEl instanceof HTMLElement)) {
+			this.clearBlame();
+			return;
+		}
 
 		const editor = view.editor;
 		const cursor = editor.getCursor();
