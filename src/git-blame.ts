@@ -67,21 +67,43 @@ const parsePorcelain = (output: string): BlameInfo | null => {
 };
 
 /**
+ * Converts a git remote URL (SSH or HTTPS, including GitHub Enterprise hosts
+ * like "github.mycompany.com") into a browsable base URL,
+ * e.g. "https://github.mycompany.com/owner/repo".
+ * Returns null if the URL can't be parsed.
+ */
+export const remoteUrlToWebUrl = (remote: string): string | null => {
+	const trimmed = remote.trim();
+
+	// SSH form: [ssh://]git@host[:port][:/]owner/repo[.git]
+	const sshMatch = trimmed.match(/^(?:ssh:\/\/)?[^@/]+@([^:/]+)(?::\d+)?[:/](.+?)(\.git)?\/?$/);
+	if (sshMatch) {
+		const [, host, path] = sshMatch;
+		return `https://${host}/${path}`;
+	}
+
+	// HTTP(S) form: https://[user@]host[:port]/owner/repo[.git]
+	const httpMatch = trimmed.match(/^https?:\/\/(?:[^@/]+@)?([^/]+)\/(.+?)(\.git)?\/?$/);
+	if (httpMatch) {
+		const [, host, path] = httpMatch;
+		return `https://${host}/${path}`;
+	}
+
+	return null;
+};
+
+/**
  * Reads the repo's `origin` remote URL and converts it to a browsable
- * GitHub base URL, e.g. "https://github.com/owner/repo".
- * Returns null if there's no remote or it isn't a GitHub URL.
+ * base URL, e.g. "https://github.com/owner/repo". Works with GitHub
+ * Enterprise hosts as well as github.com.
+ * Returns null if there's no remote or it can't be parsed.
  */
 export const getGithubRepoUrl = async (vaultPath: string): Promise<string | null> => {
 	try {
 		const { stdout } = await execAsync("git config --get remote.origin.url", {
 			cwd: vaultPath,
 		});
-		const remote = stdout.trim();
-
-		const match = remote.match(/github\.com[:/](.+?)(\.git)?$/);
-		if (!match) return null;
-
-		return `https://github.com/${match[1]}`;
+		return remoteUrlToWebUrl(stdout.trim());
 	} catch (err) {
 		console.error("obsidian-lens: could not resolve remote URL", err);
 		return null;

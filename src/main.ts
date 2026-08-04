@@ -5,9 +5,23 @@ import { showBlamePopup, removeBlamePopup } from "./blame-popup";
 
 const POPUP_HIDE_DELAY_MS = 200;
 
+/** Matches a markdown table row, e.g. `| a | b |`. */
+const TABLE_ROW_RE = /^\|.*\|$/;
+/** Matches a markdown table separator row, e.g. `| --- | --- |` or `:--|--:`. */
+const TABLE_SEPARATOR_RE = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/;
+
+const isTableLine = (lineEl: HTMLElement, lineText: string): boolean => {
+	if (lineEl.closest("table")) return true;
+	if (Array.from(lineEl.classList).some((cls) => /table/i.test(cls))) return true;
+
+	const trimmed = lineText.trim();
+	return TABLE_ROW_RE.test(trimmed) || TABLE_SEPARATOR_RE.test(trimmed);
+};
+
 export default class ObsidianLensPlugin extends Plugin {
 	private githubUrl: string | null = null;
 	private hidePopupTimeout: number | null = null;
+	private scrollCleanup: (() => void) | null = null;
 
 	async onload() {
 		this.registerDomEvent(document, "click", (evt: MouseEvent) => {
@@ -37,8 +51,29 @@ export default class ObsidianLensPlugin extends Plugin {
 
 	clearBlame() {
 		this.cancelHidePopup();
+		this.detachScrollDismiss();
 		removeBlameAnnotation();
 		removeBlamePopup();
+	}
+
+	/** Dismiss the blame annotation/popup as soon as the editor scrolls, since their
+	 *  position is computed once and doesn't track the line as it moves. */
+	attachScrollDismiss(lineEl: HTMLElement) {
+		this.detachScrollDismiss();
+
+		const scroller = lineEl.closest(".cm-scroller");
+		if (!(scroller instanceof HTMLElement)) return;
+
+		const onScroll = () => this.clearBlame();
+		scroller.addEventListener("scroll", onScroll, { passive: true });
+		this.scrollCleanup = () => scroller.removeEventListener("scroll", onScroll);
+	}
+
+	detachScrollDismiss() {
+		if (this.scrollCleanup) {
+			this.scrollCleanup();
+			this.scrollCleanup = null;
+		}
 	}
 
 	scheduleHidePopup() {
@@ -74,7 +109,14 @@ export default class ObsidianLensPlugin extends Plugin {
 		const cursor = editor.getCursor();
 		const lineNumber = cursor.line + 1;
 
-		if (editor.getLine(cursor.line).trim().length === 0) {
+		const currentLineText = editor.getLine(cursor.line);
+
+		if (currentLineText.trim().length === 0) {
+			this.clearBlame();
+			return;
+		}
+
+		if (isTableLine(lineEl, currentLineText)) {
 			this.clearBlame();
 			return;
 		}
@@ -118,6 +160,7 @@ export default class ObsidianLensPlugin extends Plugin {
 			},
 			onLeave: () => this.scheduleHidePopup(),
 		});
+		this.attachScrollDismiss(lineEl);
 	}
 
 	getVaultAbsolutePath(): string | null {
