@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-lens-plugin",
 	"name": "Obsidian Lens",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "1.0.0",
 	"description": "Click a line to see who last changed it and when, via git blame.",
 	"author": "DeathGumi",
